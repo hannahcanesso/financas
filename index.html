@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saúde Financeira</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg: #14181C;
+    --surface: #1B2025;
+    --surface-2: #20262C;
+    --border: #2B323A;
+    --text: #E8E6DF;
+    --text-dim: #8B9299;
+    --teal: #4FAE8B;
+    --amber: #E0A458;
+    --coral: #D2665A;
+    --grid-line: #232A31;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+
+  a{ color:inherit; }
+
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:2.5rem 1.5rem 5rem;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:1.5rem;
+    margin-bottom:2.5rem;
+    padding-bottom:1.5rem;
+    border-bottom:1px solid var(--border);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin:0 0 .5rem;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow .dot{
+    width:6px; height:6px; border-radius:50%;
+    background:var(--teal);
+    box-shadow:0 0 0 3px rgba(79,174,139,.18);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:.4; }
+  }
+  h1{
+    font-size:28px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .month-tabs{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .month-tab{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    padding:7px 14px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--text-dim);
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .month-tab:hover{ border-color:var(--teal); color:var(--text); }
+  .month-tab.active{
+    background:var(--teal);
+    border-color:var(--teal);
+    color:#0F1B17;
+    font-weight:600;
+  }
+
+  /* ---------- Summary cards ---------- */
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:12px;
+    margin-bottom:2rem;
+  }
+  @media (max-width:760px){ .cards{ grid-template-columns:repeat(2, 1fr); } }
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:1.1rem 1.25rem;
+  }
+  .card .label{
+    font-size:11.5px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin:0 0 .5rem;
+  }
+  .card .value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:24px;
+    font-weight:600;
+    margin:0;
+    line-height:1.1;
+  }
+  .card .delta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    margin-top:.4rem;
+    display:inline-block;
+  }
+  .delta.up{ color:var(--coral); }
+  .delta.down{ color:var(--teal); }
+  .delta.flat{ color:var(--text-dim); }
+
+  /* ---------- Section shell ---------- */
+  .section{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:1.5rem;
+    margin-bottom:1.25rem;
+  }
+  .section-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:1.1rem;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .section-title{
+    font-size:14px;
+    font-weight:600;
+    margin:0;
+  }
+  .section-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--text-dim);
+    margin:0;
+  }
+
+  .chart-box{ position:relative; width:100%; }
+  #pulseChart-box{ height:230px; }
+  #stackChart-box{ height:260px; }
+  #catChart-box{ height:340px; }
+
+  .legend{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    color:var(--text-dim);
+    margin-top:.75rem;
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* ---------- Alerts ---------- */
+  .alert-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:.7rem 0;
+    border-bottom:1px solid var(--border);
+    font-size:13.5px;
+  }
+  .alert-row:last-child{ border-bottom:none; }
+  .alert-cat{ font-weight:500; }
+  .alert-detail{ color:var(--text-dim); font-size:12px; margin-top:2px; }
+  .alert-pct{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    font-weight:600;
+    padding:3px 9px;
+    border-radius:6px;
+    white-space:nowrap;
+  }
+  .alert-pct.up{ background:rgba(210,102,90,.15); color:var(--coral); }
+  .alert-pct.down{ background:rgba(79,174,139,.15); color:var(--teal); }
+  .empty-state{
+    color:var(--text-dim);
+    font-size:13px;
+    padding:.5rem 0;
+  }
+
+  footer{
+    text-align:center;
+    color:var(--text-dim);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    margin-top:2.5rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="eyebrow"><span class="dot"></span>Monitor mensal</p>
+      <h1>Saúde Financeira</h1>
+    </div>
+    <div class="month-tabs" id="monthTabs"></div>
+  </header>
+
+  <section class="cards" id="cards"></section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Saldo do mês — sinal vital</p>
+      <p class="section-note">acima da linha = sobrou · abaixo = estourou</p>
+    </div>
+    <div class="chart-box" id="pulseChart-box"><canvas id="pulseChart"></canvas></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Fixos vs. estilo de vida vs. imprevisto</p>
+      <p class="section-note">composição do gasto, mês a mês</p>
+    </div>
+    <div class="chart-box" id="stackChart-box"><canvas id="stackChart"></canvas></div>
+    <div class="legend">
+      <span><span class="swatch" style="background:#6B7680"></span>Essencial</span>
+      <span><span class="swatch" style="background:#4FAE8B"></span>Estilo de vida</span>
+      <span><span class="swatch" style="background:#E0A458"></span>Imprevisto</span>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title" id="catChartTitle">Categorias — mês atual vs. anterior</p>
+      <p class="section-note">estilo de vida + imprevisto, ordenado por valor</p>
+    </div>
+    <div class="chart-box" id="catChart-box"><canvas id="catChart"></canvas></div>
+    <div class="legend" id="catLegend"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Alertas automáticos</p>
+      <p class="section-note">categorias com variação relevante vs. mês anterior</p>
+    </div>
+    <div id="alerts"></div>
+  </section>
+
+  <footer>atualizado manualmente a partir do fechamento mensal · dados em data.js</footer>
+</div>
+
+<script>
+/* ==========================================================================
+   DADOS MENSAIS — é aqui que entra o fechamento de cada mês.
+   Formato: um objeto por mês em MONTHLY_DATA, com o total gasto (positivo)
+   por categoria. Se aparecer categoria nova, mapeie em CATEGORY_GROUPS
+   (essencial / estilo_vida / imprevisto) — não mapeada cai em estilo_vida.
+   ========================================================================== */
+window.CATEGORY_GROUPS = {
+  // essenciais
+  'Financiamento': 'essencial',
+  'Condomínio': 'essencial',
+  'CEMIG': 'essencial',
+  'CLARO': 'essencial',
+  'Vivo': 'essencial',
+  'Terapia': 'essencial',
+  'Seguro Carro': 'essencial',
+  'Exercício': 'essencial',
+  'Prudential': 'essencial',
+  'Previdência XP': 'essencial',
+  'Streamings': 'essencial',
+  'Spotify': 'essencial',
+  'Frotinha': 'essencial',
+  'Gasolina': 'essencial',
+  'Saúde/Higiene': 'essencial',
+  'Supermercado': 'essencial',
+  'Padaria': 'essencial',
+  'Estacionamento': 'essencial',
+  'Transporte Público': 'essencial',
+  'Matilde/Magda': 'essencial',
+
+  // imprevistos pontuais
+  'Manutenção': 'imprevisto',
+
+  // estilo de vida
+  'Delivery': 'estilo_vida',
+  'Restaurante': 'estilo_vida',
+  'Farra': 'estilo_vida',
+  'Boteco': 'estilo_vida',
+  'Presentes': 'estilo_vida',
+  'Uber/99/Taxi': 'estilo_vida',
+  'Casinha': 'estilo_vida',
+  'Compras Pessoais': 'estilo_vida',
+  'Ingressos': 'estilo_vida',
+  'Curitiba': 'estilo_vida',
+  'RTM 26': 'estilo_vida',
+  'Casamento Jundiaí': 'estilo_vida',
+};
+
+window.MONTHLY_DATA = [
+  {
+    key: '2026-06',
+    label: 'Junho',
+    income: 5800,
+    categories: {
+      'Financiamento': 1403.50,
+      'Supermercado': 481.11,
+      'Manutenção': 446.95,
+      'Terapia': 360.00,
+      'Previdência XP': 300.00,
+      'Prudential': 291.89,
+      'Condomínio': 200.00,
+      'Restaurante': 180.79,
+      'Gasolina': 175.00,
+      'Presentes': 158.67,
+      'Delivery': 154.42,
+      'Uber/99/Taxi': 150.88,
+      'Casinha': 147.77,
+      'Farra': 135.00,
+      'RTM 26': 121.90,
+      'Seguro Carro': 118.52,
+      'CEMIG': 103.16,
+      'Curitiba': 102.41,
+      'Vivo': 70.00,
+      'CLARO': 67.45,
+      'Saúde/Higiene': 51.57,
+      'Ingressos': 48.94,
+      'Compras Pessoais': 48.39,
+      'Streamings': 45.30,
+      'Casamento Jundiaí': 41.34,
+      'Exercício': 39.80,
+      'Frotinha': 35.00,
+      'Padaria': 33.10,
+      'Estacionamento': 17.25,
+      'Boteco': 13.50,
+      'Spotify': 11.67,
+      'Transporte Público': 10.00,
+    },
+  },
+  {
+    key: '2026-07',
+    label: 'Julho',
+    income: 5800,
+    categories: {
+      'Financiamento': 1400.00,
+      'Supermercado': 820.54,
+      'Presentes': 394.78,
+      'Delivery': 319.26,
+      'Gasolina': 300.00,
+      'Previdência XP': 300.00,
+      'Prudential': 291.89,
+      'Terapia': 270.00,
+      'Casinha': 261.85,
+      'Farra': 239.12,
+      'Condomínio': 200.00,
+      'Compras Pessoais': 178.65,
+      'RTM 26': 121.90,
+      'Seguro Carro': 118.52,
+      'Curitiba': 102.41,
+      'CEMIG': 99.68,
+      'Matilde/Magda': 94.61,
+      'Saúde/Higiene': 89.32,
+      'Padaria': 80.64,
+      'Vivo': 71.00,
+      'CLARO': 67.45,
+      'Uber/99/Taxi': 60.49,
+      'Streamings': 45.30,
+      'Exercício': 39.80,
+      'Estacionamento': 22.00,
+      'Spotify': 11.67,
+      'Transporte Público': 6.00,
+    },
+  },
+];
+
+const fmt = (v) => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtSigned = (v) => (v >= 0 ? '+' : '−') + 'R$ ' + Math.abs(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+const GROUPS = window.CATEGORY_GROUPS || {};
+const MONTHS = window.MONTHLY_DATA || [];
+
+function groupOf(cat){ return GROUPS[cat] || 'estilo_vida'; }
+
+function computeMonth(m){
+  let essencial = 0, estilo_vida = 0, imprevisto = 0;
+  for (const [cat, val] of Object.entries(m.categories)){
+    const g = groupOf(cat);
+    if (g === 'essencial') essencial += val;
+    else if (g === 'imprevisto') imprevisto += val;
+    else estilo_vida += val;
+  }
+  const total = essencial + estilo_vida + imprevisto;
+  const saldo = m.income - total;
+  return { ...m, essencial, estilo_vida, imprevisto, total, saldo };
+}
+
+const DATA = MONTHS.map(computeMonth);
+let activeIdx = DATA.length - 1;
+
+function renderTabs(){
+  const el = document.getElementById('monthTabs');
+  el.innerHTML = '';
+  DATA.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.className = 'month-tab' + (i === activeIdx ? ' active' : '');
+    b.textContent = m.label;
+    b.onclick = () => { activeIdx = i; renderAll(); };
+    el.appendChild(b);
+  });
+}
+
+function renderCards(){
+  const el = document.getElementById('cards');
+  const cur = DATA[activeIdx];
+  const prev = DATA[activeIdx - 1];
+  const pctUsed = (cur.total / cur.income) * 100;
+
+  const saldoDelta = prev ? cur.saldo - prev.saldo : null;
+  const totalDelta = prev ? cur.total - prev.total : null;
+
+  el.innerHTML = `
+    <div class="card">
+      <p class="label">Renda</p>
+      <p class="value mono">${fmt(cur.income)}</p>
+    </div>
+    <div class="card">
+      <p class="label">Total gasto</p>
+      <p class="value mono">${fmt(cur.total)}</p>
+      ${totalDelta !== null ? `<span class="delta mono ${totalDelta > 0 ? 'up' : totalDelta < 0 ? 'down' : 'flat'}">${fmtSigned(-totalDelta)} vs ${prev.label}</span>` : ''}
+    </div>
+    <div class="card">
+      <p class="label">Saldo</p>
+      <p class="value mono" style="color:${cur.saldo >= 0 ? 'var(--teal)' : 'var(--coral)'}">${fmtSigned(cur.saldo)}</p>
+      ${saldoDelta !== null ? `<span class="delta mono ${saldoDelta > 0 ? 'down' : saldoDelta < 0 ? 'up' : 'flat'}">${fmtSigned(saldoDelta)} vs ${prev.label}</span>` : ''}
+    </div>
+    <div class="card">
+      <p class="label">% da renda usado</p>
+      <p class="value mono" style="color:${pctUsed > 100 ? 'var(--coral)' : pctUsed > 90 ? 'var(--amber)' : 'var(--teal)'}">${pctUsed.toFixed(0)}%</p>
+    </div>
+  `;
+}
+
+let pulseChartInstance, stackChartInstance, catChartInstance;
+
+function renderPulseChart(){
+  const ctx = document.getElementById('pulseChart');
+  const labels = DATA.map(m => m.label);
+  const saldos = DATA.map(m => m.saldo);
+
+  if (pulseChartInstance) pulseChartInstance.destroy();
+  pulseChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: saldos,
+        borderColor: '#4FAE8B',
+        borderWidth: 2,
+        pointRadius: (ctx) => ctx.dataIndex === activeIdx ? 6 : 4,
+        pointBackgroundColor: (ctx) => saldos[ctx.dataIndex] >= 0 ? '#4FAE8B' : '#D2665A',
+        pointBorderColor: '#14181C',
+        pointBorderWidth: 2,
+        segment: {
+          borderColor: (ctx) => (ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0) ? '#D2665A' : '#4FAE8B',
+        },
+        tension: 0.35,
+        fill: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => fmtSigned(c.parsed.y) }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#232A31' },
+          ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 } }
+        },
+        y: {
+          grid: { color: (c) => c.tick.value === 0 ? '#4A535D' : '#232A31' },
+          ticks: {
+            color: '#8B9299',
+            font: { family: 'IBM Plex Mono', size: 11 },
+            callback: (v) => 'R$' + v.toLocaleString('pt-BR')
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderStackChart(){
+  const ctx = document.getElementById('stackChart');
+  const labels = DATA.map(m => m.label);
+
+  if (stackChartInstance) stackChartInstance.destroy();
+  stackChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Essencial', data: DATA.map(m => m.essencial), backgroundColor: '#6B7680', borderRadius: 3, maxBarThickness: 46 },
+        { label: 'Estilo de vida', data: DATA.map(m => m.estilo_vida), backgroundColor: '#4FAE8B', borderRadius: 3, maxBarThickness: 46 },
+        { label: 'Imprevisto', data: DATA.map(m => m.imprevisto), backgroundColor: '#E0A458', borderRadius: 3, maxBarThickness: 46 },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11.5 } } },
+        y: {
+          stacked: true,
+          grid: { color: '#232A31' },
+          ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') }
+        }
+      }
+    }
+  });
+}
+
+function renderCatChart(){
+  const cur = DATA[activeIdx];
+  const prev = DATA[activeIdx - 1];
+  document.getElementById('catChartTitle').textContent = prev
+    ? `Categorias — ${cur.label} vs. ${prev.label}`
+    : `Categorias — ${cur.label}`;
+
+  // categorias de estilo de vida + imprevisto, união entre os dois meses, ordenado pelo valor do mês atual
+  const relevantCats = new Set();
+  Object.keys(cur.categories).forEach(c => { if (groupOf(c) !== 'essencial') relevantCats.add(c); });
+  if (prev) Object.keys(prev.categories).forEach(c => { if (groupOf(c) !== 'essencial') relevantCats.add(c); });
+
+  const rows = Array.from(relevantCats).map(c => ({
+    cat: c,
+    cur: cur.categories[c] || 0,
+    prev: prev ? (prev.categories[c] || 0) : 0
+  })).sort((a, b) => b.cur - a.cur).slice(0, 10);
+
+  const ctx = document.getElementById('catChart');
+  const datasets = prev
+    ? [
+        { label: prev.label, data: rows.map(r => r.prev), backgroundColor: '#3A4149', borderRadius: 3, maxBarThickness: 16 },
+        { label: cur.label, data: rows.map(r => r.cur), backgroundColor: '#4FAE8B', borderRadius: 3, maxBarThickness: 16 },
+      ]
+    : [
+        { label: cur.label, data: rows.map(r => r.cur), backgroundColor: '#4FAE8B', borderRadius: 3, maxBarThickness: 16 },
+      ];
+
+  if (catChartInstance) catChartInstance.destroy();
+  catChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: rows.map(r => r.cat), datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.x)}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#232A31' }, ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') } },
+        y: { grid: { display: false }, ticks: { color: '#E8E6DF', font: { family: 'IBM Plex Sans', size: 12.5 } } }
+      }
+    }
+  });
+
+  const legendEl = document.getElementById('catLegend');
+  legendEl.innerHTML = prev
+    ? `<span><span class="swatch" style="background:#3A4149"></span>${prev.label}</span><span><span class="swatch" style="background:#4FAE8B"></span>${cur.label}</span>`
+    : `<span><span class="swatch" style="background:#4FAE8B"></span>${cur.label}</span>`;
+}
+
+function renderAlerts(){
+  const el = document.getElementById('alerts');
+  const cur = DATA[activeIdx];
+  const prev = DATA[activeIdx - 1];
+
+  if (!prev){
+    el.innerHTML = `<p class="empty-state">Sem mês anterior pra comparar ainda.</p>`;
+    return;
+  }
+
+  const allCats = new Set([...Object.keys(cur.categories), ...Object.keys(prev.categories)]);
+  const rows = [];
+  allCats.forEach(cat => {
+    const c = cur.categories[cat] || 0;
+    const p = prev.categories[cat] || 0;
+    if (p === 0 && c === 0) return;
+    const pct = p === 0 ? Infinity : ((c - p) / p) * 100;
+    const absDiff = c - p;
+    // dispara alerta se subiu 30%+ E o valor absoluto importa (> R$50 de diferença)
+    if (pct >= 30 && Math.abs(absDiff) >= 50){
+      rows.push({ cat, c, p, pct, absDiff });
+    }
+  });
+  rows.sort((a, b) => b.absDiff - a.absDiff);
+
+  if (rows.length === 0){
+    el.innerHTML = `<p class="empty-state">Nenhuma categoria com alta relevante vs. ${prev.label}. 🙂</p>`;
+    return;
+  }
+
+  el.innerHTML = rows.map(r => `
+    <div class="alert-row">
+      <div>
+        <div class="alert-cat">${r.cat}</div>
+        <div class="alert-detail mono">${fmt(r.p)} → ${fmt(r.c)}</div>
+      </div>
+      <div class="alert-pct up">${r.pct === Infinity ? 'novo' : '+' + r.pct.toFixed(0) + '%'}</div>
+    </div>
+  `).join('');
+}
+
+function renderAll(){
+  renderTabs();
+  renderCards();
+  renderPulseChart();
+  renderStackChart();
+  renderCatChart();
+  renderAlerts();
+}
+
+renderAll();
+</script>
+</body>
+</html>
