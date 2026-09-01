@@ -239,6 +239,15 @@
 
   <section class="section">
     <div class="section-head">
+      <p class="section-title" id="avgChartTitle">Mês vs. média dos demais meses</p>
+      <p class="section-note">média recalculada conforme novos meses entram</p>
+    </div>
+    <div class="chart-box" id="avgChart-box" style="height:180px;"><canvas id="avgChart"></canvas></div>
+    <p id="avgSummary" class="section-note mono" style="margin-top:10px; font-size:12.5px;"></p>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <p class="section-title">Saldo do mês — sinal vital</p>
       <p class="section-note">acima da linha = sobrou · abaixo = estourou</p>
     </div>
@@ -269,6 +278,16 @@
 
   <section class="section">
     <div class="section-head">
+      <p class="section-title" id="cumChartTitle">Gasto acumulado dia a dia</p>
+      <p class="section-note">mês atual vs. média acumulada dos demais meses</p>
+    </div>
+    <div style="display:flex; gap:24px; margin-bottom:1rem; flex-wrap:wrap;" id="cumTotals"></div>
+    <div class="chart-box" id="cumChart-box" style="height:280px;"><canvas id="cumChart"></canvas></div>
+    <div class="legend" id="cumLegend"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <p class="section-title" id="pieChartTitle">Distribuição por categoria macro</p>
       <p class="section-note">% do total gasto no mês</p>
     </div>
@@ -292,9 +311,16 @@
 <script>
 /* ==========================================================================
    DADOS MENSAIS — é aqui que entra o fechamento de cada mês.
-   Formato: um objeto por mês em MONTHLY_DATA, com o total gasto (positivo)
-   por categoria. Se aparecer categoria nova, mapeie em CATEGORY_GROUPS
+   Formato: um objeto por mês em MONTHLY_DATA, com:
+   - categories: total gasto (positivo) por categoria
+   - daily: array com o gasto de cada dia do mês, em ordem (dia 1, 2, 3...),
+     usado no gráfico "gasto acumulado dia a dia". Se não tiver o detalhe
+     diário de um mês, pode omitir o campo "daily" que o gráfico ainda
+     funciona pros outros meses.
+   Se aparecer categoria nova, mapeie em CATEGORY_GROUPS
    (essencial / estilo_vida / imprevisto) — não mapeada cai em estilo_vida.
+   Também mapeie em MACRO_GROUPS pro gráfico de pizza — não mapeada cai em
+   "Outros".
    ========================================================================== */
 window.CATEGORY_GROUPS = {
   // essenciais
@@ -389,7 +415,7 @@ function macroOf(cat){ return window.MACRO_GROUPS[cat] || 'Outros'; }
 window.MONTHLY_DATA = [
   {
     key: '2026-06',
-    label: 'Junho',
+    label: 'Junho/26',
     income: 5800,
     categories: {
       'Financiamento': 1403.50,
@@ -425,10 +451,11 @@ window.MONTHLY_DATA = [
       'Spotify': 11.67,
       'Transporte Público': 10.00,
     },
+    daily: [431.85,1548.74,128.4,221.55,747.18,41.67,30.7,142.63,356.51,117.5,0,272.24,41.94,0,0,100.87,48.39,455.51,90.0,112.69,20.9,0,383.84,118.52,90.0,16.45,40.85,6.35,0,0],
   },
   {
     key: '2026-07',
-    label: 'Julho',
+    label: 'Julho/26',
     income: 5800,
     categories: {
       'Financiamento': 1400.00,
@@ -459,10 +486,11 @@ window.MONTHLY_DATA = [
       'Spotify': 11.67,
       'Transporte Público': 6.00,
     },
+    daily: [495.58,42.4,204.18,255.38,56.86,1667.45,302.18,3.23,130.85,84.74,143.97,38.33,0,31.37,132.16,124.0,127.52,34.7,192.82,92.1,124.49,535.38,174.17,357.07,130.65,0,152.18,250.67,122.45,0,0],
   },
   {
     key: '2026-08',
-    label: 'Agosto',
+    label: 'Agosto/26',
     income: 5800,
     categories: {
       'Financiamento': 1400.00,
@@ -492,6 +520,7 @@ window.MONTHLY_DATA = [
       'Spotify': 11.67,
       'Transporte Público': 6.00,
     },
+    daily: [229.46,101.43,8.95,14.84,31.89,365.86,1737.52,7.49,5.95,47.3,45.85,12.39,0,193.99,45.9,59.75,207.46,0,120.3,0,66.9,57.58,29.68,118.52,35.9,128.71,461.5,90.0,284.64,208.49,3.74],
   },
 ];
 
@@ -562,7 +591,69 @@ function renderCards(){
   `;
 }
 
-let pulseChartInstance, stackChartInstance, catChartInstance;
+let pulseChartInstance, stackChartInstance, catChartInstance, avgChartInstance;
+
+function renderAvgChart(){
+  const cur = DATA[activeIdx];
+  const others = DATA.filter((m, i) => i !== activeIdx);
+  const ctx = document.getElementById('avgChart');
+  const titleEl = document.getElementById('avgChartTitle');
+  const summaryEl = document.getElementById('avgSummary');
+
+  if (others.length === 0){
+    titleEl.textContent = 'Mês vs. média dos demais meses';
+    if (avgChartInstance) { avgChartInstance.destroy(); avgChartInstance = null; }
+    ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+    summaryEl.textContent = 'Ainda não há outro mês pra comparar — a média aparece a partir do segundo mês cadastrado.';
+    return;
+  }
+
+  const avg = others.reduce((s, m) => s + m.total, 0) / others.length;
+  const diff = cur.total - avg;
+  const pct = (diff / avg) * 100;
+  const better = diff < 0; // gastou menos que a média = melhor
+
+  titleEl.textContent = `${cur.label} vs. média dos outros ${others.length} mês${others.length > 1 ? 'es' : ''}`;
+
+  if (avgChartInstance) avgChartInstance.destroy();
+  avgChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [cur.label, `Média (${others.map(m => m.label).join(', ')})`],
+      datasets: [{
+        data: [cur.total, avg],
+        backgroundColor: [better ? '#4FAE8B' : '#D2665A', '#3A4149'],
+        borderRadius: 4,
+        maxBarThickness: 40,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => fmt(c.parsed.x) }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#232A31' }, ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') } },
+        y: { grid: { display: false }, ticks: { color: '#E8E6DF', font: { family: 'IBM Plex Sans', size: 12.5 } } }
+      }
+    }
+  });
+
+  const arrow = better ? '▼' : '▲';
+  const color = better ? 'var(--teal)' : 'var(--coral)';
+  const verdict = better ? 'gastou menos que a média' : 'gastou mais que a média';
+  summaryEl.innerHTML = `<span style="color:${color}; font-weight:600;">${arrow} ${Math.abs(pct).toFixed(1)}% (${fmtSigned(-diff)})</span> — ${verdict} dos outros meses`;
+}
 
 function renderPulseChart(){
   const ctx = document.getElementById('pulseChart');
@@ -722,7 +813,99 @@ function renderCatChart(){
     : `<span><span class="swatch" style="background:#4FAE8B"></span>${cur.label}</span>`;
 }
 
-let pieChartInstance;
+let pieChartInstance, cumChartInstance;
+
+function renderCumChart(){
+  const cur = DATA[activeIdx];
+  const others = DATA.filter((m, i) => i !== activeIdx);
+  const titleEl = document.getElementById('cumChartTitle');
+  const totalsEl = document.getElementById('cumTotals');
+  const legendEl = document.getElementById('cumLegend');
+  const ctx = document.getElementById('cumChart');
+
+  if (!cur.daily){
+    titleEl.textContent = 'Gasto acumulado dia a dia';
+    if (cumChartInstance) { cumChartInstance.destroy(); cumChartInstance = null; }
+    totalsEl.innerHTML = '';
+    legendEl.innerHTML = '';
+    ctx.getContext('2d').clearRect(0, 0, ctx.width, ctx.height);
+    return;
+  }
+
+  const cumOf = (arr) => { let r = 0; return arr.map(v => (r += v, Math.round(r*100)/100)); };
+  const curCum = cumOf(cur.daily);
+
+  const othersWithDaily = others.filter(m => m.daily);
+  let avgCum = null;
+  if (othersWithDaily.length > 0){
+    const maxLen = Math.max(...othersWithDaily.map(m => m.daily.length));
+    avgCum = [];
+    for (let d = 0; d < maxLen; d++){
+      const vals = othersWithDaily
+        .filter(m => d < m.daily.length)
+        .map(m => cumOf(m.daily)[d]);
+      avgCum.push(vals.length ? Math.round((vals.reduce((a,b)=>a+b,0)/vals.length)*100)/100 : null);
+    }
+  }
+
+  const maxDays = Math.max(curCum.length, avgCum ? avgCum.length : 0);
+  const labels = Array.from({length: maxDays}, (_, i) => i + 1);
+
+  titleEl.textContent = othersWithDaily.length
+    ? `${cur.label} vs. média acumulada de ${othersWithDaily.map(m => m.label).join(', ')}`
+    : `Gasto acumulado dia a dia — ${cur.label}`;
+
+  const curFinal = curCum[curCum.length - 1];
+  const avgFinal = avgCum ? avgCum[avgCum.length - 1] : null;
+  totalsEl.innerHTML = `
+    <div>
+      <p style="font-size:12px; color:var(--text-dim); margin:0 0 2px;">${cur.label}</p>
+      <p style="font-size:22px; font-weight:500; margin:0; color:${avgFinal !== null && curFinal > avgFinal ? '#D2665A' : '#4FAE8B'};">${fmt(curFinal)}</p>
+    </div>
+    ${avgFinal !== null ? `
+    <div>
+      <p style="font-size:12px; color:var(--text-dim); margin:0 0 2px;">Média acumulada dos demais</p>
+      <p style="font-size:22px; font-weight:500; margin:0; color:var(--text);">${fmt(avgFinal)}</p>
+    </div>` : ''}
+  `;
+
+  const datasets = [
+    { label: cur.label, data: curCum, borderColor: '#D2665A', backgroundColor: '#D2665A', borderWidth: 2, pointRadius: 0, tension: 0.25 },
+  ];
+  if (avgCum){
+    datasets.push({ label: 'Média dos demais meses', data: avgCum, borderColor: '#8B9299', backgroundColor: '#8B9299', borderWidth: 2, borderDash: [5,4], pointRadius: 0, tension: 0.25 });
+  }
+
+  if (cumChartInstance) cumChartInstance.destroy();
+  cumChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'dia do mês', color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 } }, ticks: { maxTicksLimit: 10, color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 } }, grid: { display: false } },
+        y: { ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: '#232A31' } }
+      }
+    }
+  });
+
+  legendEl.innerHTML = `
+    <span><span class="swatch" style="background:#D2665A"></span>${cur.label}</span>
+    ${avgCum ? `<span><span class="swatch" style="background:#8B9299; border-top:2px dashed #8B9299; height:0;"></span>Média dos demais meses</span>` : ''}
+  `;
+}
 
 function renderPieChart(){
   const cur = DATA[activeIdx];
@@ -820,9 +1003,11 @@ function renderAlerts(){
 function renderAll(){
   renderTabs();
   renderCards();
+  renderAvgChart();
   renderPulseChart();
   renderStackChart();
   renderCatChart();
+  renderCumChart();
   renderPieChart();
   renderAlerts();
 }
