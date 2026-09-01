@@ -269,6 +269,17 @@
 
   <section class="section">
     <div class="section-head">
+      <p class="section-title" id="pieChartTitle">Distribuição por categoria macro</p>
+      <p class="section-note">% do total gasto no mês</p>
+    </div>
+    <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
+      <div class="chart-box" id="pieChart-box" style="height:280px; width:280px; flex:0 0 280px;"><canvas id="pieChart"></canvas></div>
+      <div id="pieLegend" style="flex:1; min-width:220px;"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <p class="section-title">Alertas automáticos</p>
       <p class="section-note">categorias com variação relevante vs. mês anterior</p>
     </div>
@@ -325,6 +336,55 @@ window.CATEGORY_GROUPS = {
   'RTM 26': 'estilo_vida',
   'Casamento Jundiaí': 'estilo_vida',
 };
+
+// Categoria macro (pra pizza) — definida pelo usuário na planilha Categorias_Macro.xlsx
+window.MACRO_GROUPS = {
+  'Financiamento': 'Contas Fixas',
+  'Condomínio': 'Contas Fixas',
+  'CEMIG': 'Contas Fixas',
+  'CLARO': 'Contas Fixas',
+  'Vivo': 'Contas Fixas',
+  'Terapia': 'Contas Fixas',
+  'Seguro Carro': 'Contas Fixas',
+  'Exercício': 'Contas Fixas',
+  'Streamings': 'Contas Fixas',
+  'Spotify': 'Contas Fixas',
+  'Frotinha': 'Contas Fixas',
+
+  'Prudential': 'Investimentos Fixos',
+  'Previdência XP': 'Investimentos Fixos',
+
+  'Gasolina': 'Gastos Recorrentes',
+  'Saúde/Higiene': 'Gastos Recorrentes',
+  'Supermercado': 'Gastos Recorrentes',
+  'Padaria': 'Gastos Recorrentes',
+  'Estacionamento': 'Gastos Recorrentes',
+  'Transporte Público': 'Gastos Recorrentes',
+  'Matilde/Magda': 'Gastos Recorrentes',
+  'Manutenção': 'Gastos Recorrentes',
+  'Casinha': 'Gastos Recorrentes',
+
+  'Delivery': 'Lazer',
+  'Restaurante': 'Lazer',
+  'Farra': 'Lazer',
+  'Boteco': 'Lazer',
+  'Presentes': 'Lazer',
+  'Uber/99/Taxi': 'Lazer',
+  'Compras Pessoais': 'Lazer',
+  'Ingressos': 'Lazer',
+
+  'Curitiba': 'Viagens',
+  'RTM 26': 'Viagens',
+  'Casamento Jundiaí': 'Viagens',
+};
+const MACRO_COLORS = {
+  'Contas Fixas': '#6B7680',
+  'Investimentos Fixos': '#4A7FBF',
+  'Gastos Recorrentes': '#E0A458',
+  'Lazer': '#4FAE8B',
+  'Viagens': '#C77DBF',
+};
+function macroOf(cat){ return window.MACRO_GROUPS[cat] || 'Outros'; }
 
 window.MONTHLY_DATA = [
   {
@@ -662,6 +722,60 @@ function renderCatChart(){
     : `<span><span class="swatch" style="background:#4FAE8B"></span>${cur.label}</span>`;
 }
 
+let pieChartInstance;
+
+function renderPieChart(){
+  const cur = DATA[activeIdx];
+  document.getElementById('pieChartTitle').textContent = `Distribuição por categoria macro — ${cur.label}`;
+
+  const byMacro = {};
+  for (const [cat, val] of Object.entries(cur.categories)){
+    const m = macroOf(cat);
+    byMacro[m] = (byMacro[m] || 0) + val;
+  }
+  const entries = Object.entries(byMacro).sort((a, b) => b[1] - a[1]);
+  const labels = entries.map(e => e[0]);
+  const values = entries.map(e => e[1]);
+  const colors = labels.map(l => MACRO_COLORS[l] || '#8B9299');
+  const total = values.reduce((a, b) => a + b, 0);
+
+  const ctx = document.getElementById('pieChart');
+  if (pieChartInstance) pieChartInstance.destroy();
+  pieChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#1B2025', borderWidth: 2 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '58%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025',
+          borderColor: '#2B323A',
+          borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' },
+          bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => `${c.label}: ${fmt(c.parsed)} (${(c.parsed/total*100).toFixed(1)}%)` }
+        }
+      }
+    }
+  });
+
+  const legendEl = document.getElementById('pieLegend');
+  legendEl.innerHTML = entries.map(([label, val]) => {
+    const pct = (val / total * 100).toFixed(1);
+    const color = MACRO_COLORS[label] || '#8B9299';
+    return `
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13.5px;">
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span class="swatch" style="background:${color};"></span>${label}
+        </span>
+        <span class="mono" style="color:var(--text-dim);">${fmt(val)} <span style="color:var(--text); font-weight:600;">${pct}%</span></span>
+      </div>`;
+  }).join('');
+}
+
 function renderAlerts(){
   const el = document.getElementById('alerts');
   const cur = DATA[activeIdx];
@@ -709,6 +823,7 @@ function renderAll(){
   renderPulseChart();
   renderStackChart();
   renderCatChart();
+  renderPieChart();
   renderAlerts();
 }
 
