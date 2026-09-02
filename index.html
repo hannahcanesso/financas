@@ -103,6 +103,30 @@
     font-weight:600;
   }
 
+  .page-tabs{
+    display:flex;
+    gap:8px;
+    margin-bottom:1.5rem;
+  }
+  .page-tab{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:14px;
+    font-weight:500;
+    padding:9px 18px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--text-dim);
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .page-tab:hover{ color:var(--text); }
+  .page-tab.active{
+    background:var(--surface-2);
+    border-color:var(--teal);
+    color:var(--teal);
+  }
+
   /* ---------- Summary cards ---------- */
   .cards{
     display:grid;
@@ -235,6 +259,13 @@
     <div class="month-tabs" id="monthTabs"></div>
   </header>
 
+  <div class="page-tabs">
+    <button class="page-tab active" id="pageTabGastos" onclick="showPage('gastos')">Gastos</button>
+    <button class="page-tab" id="pageTabPatrimonio" onclick="showPage('patrimonio')">Patrimônio</button>
+  </div>
+
+  <div id="pageGastos">
+
   <section class="cards" id="cards"></section>
 
   <section class="section">
@@ -305,7 +336,48 @@
     <div id="alerts"></div>
   </section>
 
-  <footer>atualizado manualmente a partir do fechamento mensal · dados em data.js</footer>
+  </div>
+
+  <div id="pagePatrimonio" style="display:none">
+
+  <section class="cards" id="patCards"></section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Evolução do patrimônio total</p>
+      <p class="section-note">soma de todas as contas, mês a mês</p>
+    </div>
+    <div class="chart-box" id="patTotalChart-box" style="height:260px;"><canvas id="patTotalChart"></canvas></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Saldo por conta</p>
+      <p class="section-note">comparativo mês a mês</p>
+    </div>
+    <div class="chart-box" id="patAcctChart-box" style="height:340px;"><canvas id="patAcctChart"></canvas></div>
+    <div class="legend" id="patAcctLegend"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title" id="patYieldTitle">Rendimento vs. aporte por conta</p>
+      <p class="section-note">crescimento do saldo, separado entre dinheiro novo e rendimento</p>
+    </div>
+    <div id="patYieldBody"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <p class="section-title">Gastos fora do padrão</p>
+      <p class="section-note">pagos com dinheiro guardado — não entram no orçamento mensal</p>
+    </div>
+    <div id="patExtraordinary"></div>
+  </section>
+
+  </div>
+
+  <footer>atualizado manualmente a partir do fechamento mensal · dados no próprio index.html</footer>
 </div>
 
 <script>
@@ -547,6 +619,248 @@ function computeMonth(m){
 
 const DATA = MONTHS.map(computeMonth);
 let activeIdx = DATA.length - 1;
+
+/* ==========================================================================
+   PATRIMÔNIO — saldos, aportes e gastos fora do padrão.
+   ATENÇÃO: aportes por conta ainda não foram informados (exceto XP,
+   R$300/mês, já confirmado). Assim que a planilha "Aportes" vier
+   preenchida, atualize PAT_APORTES abaixo pra separar rendimento de
+   dinheiro novo em todas as contas.
+   ========================================================================== */
+const PAT_MONTHS = ['Junho/26', 'Julho/26', 'Agosto/26'];
+const PAT_SALDOS = {
+  'Nubank Saldos': [3863.37, 5972.34, 2311.00],
+  'Nu Cripto': [2130.53, 2230.99, 2802.89],
+  'Nu Investimentos': [5320.07, 5344.09, 5398.00],
+  'Caixinha Turbo': [10987.88, 11148.31, 11301.81],
+  'Amortização': [1608.10, 1626.78, 1645.95],
+  'Reserva Emerg.': [4366.77, 4419.83, 4470.50],
+  'XP': [5375.86, 5717.74, 6071.86],
+  'CAIXA': [963.12, 968.24, 973.38],
+  'Dinheiro': [300.00, 300.00, 300.00],
+};
+// Aporte conhecido por conta e mês. null = ainda não informado (não dá
+// pra separar rendimento de aporte nesse caso, o card mostra só a variação bruta).
+const PAT_APORTES = {
+  'Nubank Saldos': [null, null, null],
+  'Nu Cripto': [null, null, null],
+  'Nu Investimentos': [null, null, null],
+  'Caixinha Turbo': [null, null, null],
+  'Amortização': [null, null, null],
+  'Reserva Emerg.': [null, null, null],
+  'XP': [300, 300, 300],
+  'CAIXA': [null, null, null],
+  'Dinheiro': [0, 0, 0],
+};
+const PAT_EXTRAORDINARY = [
+  { date: '16/08/2026', desc: 'Móveis Casa (sofá + mesa)', bruto: 8000, liquido: 1950, aReceber: 6050, nota: 'Mãe deve 2ª parcela do sofá; mesa dividida com marido (já lançado na conta conjunta dele)' },
+  { date: '18/08/2026', desc: '1/2 pousada Conselheiro Mata', bruto: 400, liquido: 400, aReceber: 0, nota: 'Viagem casamento' },
+];
+
+function renderPatCards(){
+  const el = document.getElementById('patCards');
+  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + v[i], 0));
+  const cur = totals[totals.length - 1];
+  const prev = totals.length > 1 ? totals[totals.length - 2] : null;
+  const delta = prev !== null ? cur - prev : null;
+  const extraTotal = PAT_EXTRAORDINARY.reduce((s, e) => s + e.liquido, 0);
+
+  el.innerHTML = `
+    <div class="card">
+      <p class="label">Patrimônio total (${PAT_MONTHS[PAT_MONTHS.length-1]})</p>
+      <p class="value mono">${fmt(cur)}</p>
+      ${delta !== null ? `<span class="delta mono ${delta >= 0 ? 'down' : 'up'}">${fmtSigned(delta)} vs ${PAT_MONTHS[PAT_MONTHS.length-2]}</span>` : ''}
+    </div>
+    <div class="card">
+      <p class="label">Aporte recorrente conhecido</p>
+      <p class="value mono">R$ 300,00</p>
+      <span class="delta mono flat">XP, todo mês</span>
+    </div>
+    <div class="card">
+      <p class="label">Gastos fora do padrão (líquido)</p>
+      <p class="value mono">${fmt(extraTotal)}</p>
+      <span class="delta mono flat">${PAT_EXTRAORDINARY.length} lançamento(s)</span>
+    </div>
+    <div class="card">
+      <p class="label">Contas rastreadas</p>
+      <p class="value mono">${Object.keys(PAT_SALDOS).length}</p>
+    </div>
+  `;
+}
+
+let patTotalChartInstance, patAcctChartInstance;
+
+function renderPatTotalChart(){
+  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + v[i], 0));
+  const ctx = document.getElementById('patTotalChart');
+  if (patTotalChartInstance) patTotalChartInstance.destroy();
+  patTotalChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: PAT_MONTHS,
+      datasets: [{
+        data: totals,
+        borderColor: '#4FAE8B',
+        backgroundColor: 'rgba(79,174,139,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointBackgroundColor: (c) => {
+          if (c.dataIndex === 0) return '#4FAE8B';
+          return totals[c.dataIndex] < totals[c.dataIndex - 1] ? '#D2665A' : '#4FAE8B';
+        },
+        fill: true,
+        tension: 0.25,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025', borderColor: '#2B323A', borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => fmt(c.parsed.y) }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 } } },
+        y: { ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: '#232A31' } }
+      }
+    }
+  });
+}
+
+function renderPatAcctChart(){
+  const accounts = Object.keys(PAT_SALDOS);
+  const ctx = document.getElementById('patAcctChart');
+  const palette = ['#6B7680', '#4A7FBF', '#4FAE8B'];
+  if (patAcctChartInstance) patAcctChartInstance.destroy();
+  patAcctChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: accounts,
+      datasets: PAT_MONTHS.map((m, i) => ({
+        label: m,
+        data: accounts.map(a => PAT_SALDOS[a][i]),
+        backgroundColor: palette[i % palette.length],
+        borderRadius: 3,
+        maxBarThickness: 16,
+      }))
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1B2025', borderColor: '#2B323A', borderWidth: 1,
+          titleFont: { family: 'IBM Plex Mono' }, bodyFont: { family: 'IBM Plex Mono' },
+          callbacks: { label: (c) => `${c.dataset.label}: ${fmt(c.parsed.x)}` }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8B9299', font: { family: 'IBM Plex Mono', size: 11 }, callback: (v) => 'R$' + v.toLocaleString('pt-BR') }, grid: { color: '#232A31' } },
+        y: { ticks: { color: '#E8E6DF', font: { family: 'IBM Plex Sans', size: 12 } }, grid: { display: false } }
+      }
+    }
+  });
+  document.getElementById('patAcctLegend').innerHTML = PAT_MONTHS.map((m, i) =>
+    `<span><span class="swatch" style="background:${palette[i % palette.length]}"></span>${m}</span>`
+  ).join('');
+}
+
+function renderPatYield(){
+  const el = document.getElementById('patYieldBody');
+  const accounts = Object.keys(PAT_SALDOS);
+  const lastIdx = PAT_MONTHS.length - 1;
+  const prevIdx = lastIdx - 1;
+
+  if (prevIdx < 0){
+    el.innerHTML = `<p class="empty-state">Precisa de pelo menos 2 meses pra calcular variação.</p>`;
+    return;
+  }
+
+  const rows = accounts.map(a => {
+    const cur = PAT_SALDOS[a][lastIdx];
+    const prev = PAT_SALDOS[a][prevIdx];
+    const variacao = cur - prev;
+    const aporte = PAT_APORTES[a][lastIdx];
+    const rendimento = aporte !== null ? variacao - aporte : null;
+    return { conta: a, variacao, aporte, rendimento };
+  });
+
+  el.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Conta</th>
+          <th style="text-align:right; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Variação</th>
+          <th style="text-align:right; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Aporte</th>
+          <th style="text-align:right; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Rendimento</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 4px;">${r.conta}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:${r.variacao >= 0 ? 'var(--teal)' : 'var(--coral)'};">${fmtSigned(r.variacao)}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:var(--text-dim);">${r.aporte !== null ? fmt(r.aporte) : '—'}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:${r.rendimento === null ? 'var(--text-dim)' : r.rendimento >= 0 ? 'var(--teal)' : 'var(--coral)'};">${r.rendimento !== null ? fmtSigned(r.rendimento) : 'aguardando aporte'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <p class="section-note" style="margin-top:10px;">Contas com "aguardando aporte" ainda não têm o valor depositado informado — assim que vier, a coluna Rendimento fecha sozinha (Variação − Aporte).</p>
+  `;
+}
+
+function renderPatExtraordinary(){
+  const el = document.getElementById('patExtraordinary');
+  el.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; font-size:13.5px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Data</th>
+          <th style="text-align:left; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Descrição</th>
+          <th style="text-align:right; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Bruto</th>
+          <th style="text-align:right; padding:8px 4px; color:var(--text-dim); font-weight:500; font-size:12px;">Líquido (seu)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${PAT_EXTRAORDINARY.map(e => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td class="mono" style="padding:8px 4px; color:var(--text-dim);">${e.date}</td>
+            <td style="padding:8px 4px;">
+              ${e.desc}
+              <div style="font-size:11.5px; color:var(--text-dim); margin-top:2px;">${e.nota}</div>
+            </td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:var(--text-dim); text-decoration:${e.bruto !== e.liquido ? 'line-through' : 'none'};">${fmt(e.bruto)}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; font-weight:600;">${fmt(e.liquido)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderPatrimonioPage(){
+  renderPatCards();
+  renderPatTotalChart();
+  renderPatAcctChart();
+  renderPatYield();
+  renderPatExtraordinary();
+}
+
+let currentPage = 'gastos';
+function showPage(page){
+  currentPage = page;
+  document.getElementById('pageGastos').style.display = page === 'gastos' ? '' : 'none';
+  document.getElementById('pagePatrimonio').style.display = page === 'patrimonio' ? '' : 'none';
+  document.getElementById('pageTabGastos').classList.toggle('active', page === 'gastos');
+  document.getElementById('pageTabPatrimonio').classList.toggle('active', page === 'patrimonio');
+  document.getElementById('monthTabs').style.visibility = page === 'gastos' ? 'visible' : 'hidden';
+  if (page === 'patrimonio' && !patTotalChartInstance) renderPatrimonioPage();
+}
 
 function renderTabs(){
   const el = document.getElementById('monthTabs');
