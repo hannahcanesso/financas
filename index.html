@@ -331,7 +331,7 @@
   <section class="section">
     <div class="section-head">
       <p class="section-title">Alertas automáticos</p>
-      <p class="section-note">categorias com variação relevante vs. mês anterior</p>
+      <p class="section-note">categorias com variação relevante vs. a média dos demais meses</p>
     </div>
     <div id="alerts"></div>
   </section>
@@ -348,6 +348,7 @@
       <p class="section-note">soma de todas as contas, mês a mês</p>
     </div>
     <div class="chart-box" id="patTotalChart-box" style="height:260px;"><canvas id="patTotalChart"></canvas></div>
+    <p id="patSaldoNote" class="section-note" style="margin-top:10px; display:none;"></p>
   </section>
 
   <section class="section">
@@ -594,6 +595,84 @@ window.MONTHLY_DATA = [
     },
     daily: [229.46,101.43,8.95,14.84,31.89,365.86,1737.52,7.49,5.95,47.3,45.85,12.39,0,193.99,45.9,59.75,207.46,0,120.3,0,66.9,57.58,29.68,118.52,35.9,128.71,461.5,90.0,284.64,208.49,3.74],
   },
+  {
+    key: '2026-09',
+    label: 'Setembro/26',
+    income: 5800,
+    // Gasto "Feriado Casamento" (R$2.375,66: cartório, Chopp da Fábrica, viagem)
+    // fica fora daqui de propósito — é extraordinário, pago com dinheiro
+    // guardado, e entra na aba Patrimônio (PAT_EXTRAORDINARY), não no
+    // orçamento mensal de rotina.
+    categories: {
+      'Financiamento': 1395.00,
+      'Casinha': 434.03,
+      'Delivery': 336.06,
+      'Previdência XP': 300.00,
+      'Prudential': 291.89,
+      'Terapia': 270.00,
+      'Supermercado': 242.13,
+      'Matilde/Magda': 226.73,
+      'Condomínio': 200.00,
+      'Manutenção': 195.00,
+      'Farra': 177.56,
+      'Gasolina': 175.00,
+      'Presentes': 143.89,
+      'Frotinha': 143.18,
+      'RTM 26': 121.90,
+      'Seguro Carro': 118.52,
+      'CEMIG': 110.58,
+      'Vivo': 71.00,
+      'Padaria': 69.62,
+      'CLARO': 67.45,
+      'Compras Pessoais': 63.97,
+      'Saúde/Higiene': 47.57,
+      'Estacionamento': 46.00,
+      'Streamings': 45.30,
+      'Exercício': 39.80,
+      'Uber/99/Taxi': 30.49,
+      'Spotify': 23.34,
+    },
+    daily: [520.05,210.88,4.5,1961.29,0,0,0,222.14,297.84,9.98,101.11,245.42,103.82,255.27,0,45.63,0,0,59.95,0,131.96,0,132.52,415.62,112.9,121.91,23.22,102.26,0,307.74],
+  },
+  {
+    key: '2026-10',
+    label: 'Outubro/26',
+    income: 5800,
+    // Inclui as 2 compras de RTM 26 de 01/11 (R$47,30), agrupadas em outubro
+    // a pedido (viagem começou em out e terminou em nov). Demais compras de
+    // novembro ficam de fora até o fechamento de novembro.
+    // Fora daqui: R$23,79 de Feriado Casamento (pedágio de 08/10) — extraordinário,
+    // vai pra PAT_EXTRAORDINARY, como o resto do casamento.
+    categories: {
+      'Financiamento': 1375.00,
+      'RTM 26': 1110.41,
+      'Gasolina': 498.28,
+      'Farra': 469.14,
+      'Terapia': 450.00,
+      'Matilde/Magda': 425.13,
+      'Supermercado': 334.71,
+      'Previdência XP': 300.00,
+      'Prudential': 291.89,
+      'Delivery': 214.47,
+      'Condomínio': 200.00,
+      'Casinha': 162.11,
+      'Uber/99/Taxi': 149.80,
+      'Saúde/Higiene': 147.79,
+      'Compras Pessoais': 145.30,
+      'Seguro Carro': 118.52,
+      'Restaurante': 110.98,
+      'CEMIG': 107.44,
+      'Vivo': 71.00,
+      'CLARO': 67.45,
+      'Presentes': 65.89,
+      'Padaria': 63.09,
+      'Exercício': 39.80,
+      'Streamings': 24.40,
+      'Spotify': 13.67,
+    },
+    // dia 31 inclui os R$47,30 de RTM 26 de novembro; dia 8 já sem o pedágio do casamento
+    daily: [249.05,142.35,202.99,100.0,0,1836.83,392.92,57.54,118.32,260.21,110.98,100.0,44.0,0,0,167.29,230.93,131.75,175.03,100.0,175.45,110.0,434.5,261.9,143.26,0,75.0,164.6,585.56,89.25,496.56],
+  },
 ];
 
 const fmt = (v) => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -627,43 +706,67 @@ let activeIdx = DATA.length - 1;
    que fica fora do cálculo de rendimento por ser conta corrente (ver
    PAT_NO_YIELD_ACCOUNTS abaixo).
    ========================================================================== */
-const PAT_MONTHS = ['Junho/26', 'Julho/26', 'Agosto/26'];
+const PAT_MONTHS = ['Janeiro/26', 'Fevereiro/26', 'Março/26', 'Abril/26', 'Maio/26', 'Junho/26', 'Julho/26', 'Agosto/26', 'Setembro/26', 'Outubro/26'];
+// Cachês e Saldo Itaú passaram a ser rastreados em outubro (antes: sem saldo, 0).
+// Nubank Saldos em abril: sem valor informado (null) — o total de abril
+// (R$29.361,69) já foi informado sem essa conta, então ele conta como 0.
 const PAT_SALDOS = {
-  'Nubank Saldos': [3863.37, 5972.34, 2311.00],
-  'Nu Cripto': [2130.53, 2230.99, 2802.89],
-  'Nu Investimentos': [5320.07, 5344.09, 5398.00],
-  'Caixinha Turbo': [10987.88, 11148.31, 11301.81],
-  'Amortização': [1608.10, 1626.78, 1645.95],
-  'Reserva Emerg.': [4366.77, 4419.83, 4470.50],
-  'XP': [5375.86, 5717.74, 6071.86],
-  'CAIXA': [963.12, 968.24, 973.38],
-  'Dinheiro': [300.00, 300.00, 300.00],
+  'Cachês':           [0, 0, 0, 0, 0, 0, 0, 0, 0, 1914.81],
+  'Saldo Itaú':       [0, 0, 0, 0, 0, 0, 0, 0, 0, 1911.83],
+  'Nubank Saldos':    [1634.65, 1532.10, 3276.92, null, 6027.70, 3863.37, 5972.34, 2311.00, -5749.69, -2163.18],
+  'Nu Cripto':        [3360.64, 2647.05, 2677.13, 2813.20, 2565.64, 2130.53, 2230.99, 2802.89, 3079.77, 2960.64],
+  'Nu Investimentos': [6963.80, 6920.77, 5747.05, 5864.16, 5874.12, 5320.07, 5344.09, 5398.00, 5428.46, 5426.59],
+  'Caixinha Turbo':   [10297.30, 10420.63, 10572.37, 10703.94, 10848.91, 10987.88, 11148.31, 11301.81, 11448.66, 11596.09],
+  'Amortização':      [1625.66, 1642.34, 1662.85, 1679.10, 1698.57, 1608.10, 1626.78, 1645.95, 1628.75, 1646.21],
+  'Reserva Emerg.':   [2221.93, 2245.32, 2271.29, 2294.82, 2320.69, 4366.77, 4419.83, 4470.50, 4518.86, 4567.29],
+  'XP':               [4252.17, 4289.22, 4333.90, 4690.48, 5021.39, 5375.86, 5717.74, 6071.86, 6424.49, 6775.54],
+  'CAIXA':            [938.73, 943.68, 948.32, 955.99, 958.04, 963.12, 968.24, 973.38, 978.58, 983.68],
+  'Dinheiro':         [0, 500, 500, 360, 300, 300, 300, 300, 200, 200],
 };
-// Aporte conhecido por conta e mês. Confirmado: só houve aporte na XP
-// (R$300/mês); todas as outras contas não receberam depósito extra.
-// 'Nubank Saldos' fica de fora do cálculo de rendimento de propósito —
-// funciona como conta corrente (o que sobra no fim do mês fica pra
-// gastar no débito ou investir depois), não como investimento.
-const PAT_NO_YIELD_ACCOUNTS = ['Nubank Saldos'];
+// O gráfico "Saldo por conta" mostra só os últimos N meses (com 10 meses
+// ficaria ilegível). A evolução do total usa todos.
+const PAT_CHART_WINDOW = 4;
+// Nubank Saldos negativo é de propósito — não é prejuízo, é contabilização
+// por competência: (caixa + a receber de terceiros) − (fatura do cartão, que
+// inclui gastos do marido/terceiros) − boletos em aberto, sem contar o
+// salário do mês seguinte. O salário de R$5.800 do mês cobre o gasto do mês,
+// mas não é lançado no relatório, então não aparece nessa conta.
+const PAT_SALDO_NOTES = {
+  '2026-09': { conta: 'Nubank Saldos', nota: 'Negativo por competência: caixa + a receber − fatura do cartão (inclui gastos de terceiros) − boletos em aberto. Salário de setembro já cobriu o gasto do mês, só não entra nessa conta.' },
+  '2026-10': { conta: 'Nubank Saldos', nota: 'Negativo por competência: caixa + a receber − fatura do cartão (inclui gastos de terceiros) − boletos em aberto, sem contar o salário do mês seguinte.' }
+};
+// Aporte por conta e mês. Jan–Mai: não informado (null) — só vale a partir de
+// junho, quando foi confirmado que só a XP recebe aporte (R$300/mês) e as
+// demais contas não recebem depósito extra.
+// Ficam fora do cálculo de rendimento (não são investimento): Nubank Saldos
+// (conta corrente), Cachês e Saldo Itaú (saldos que entraram em outubro —
+// sem isso, o saldo novo apareceria como "rendimento").
+const PAT_NO_YIELD_ACCOUNTS = ['Nubank Saldos', 'Cachês', 'Saldo Itaú'];
+const PAT_NO_YIELD_LABELS = { 'Nubank Saldos': 'conta corrente' };
+const _N = null;
 const PAT_APORTES = {
-  'Nubank Saldos': [0, 0, 0],
-  'Nu Cripto': [0, 0, 0],
-  'Nu Investimentos': [0, 0, 0],
-  'Caixinha Turbo': [0, 0, 0],
-  'Amortização': [0, 0, 0],
-  'Reserva Emerg.': [0, 0, 0],
-  'XP': [300, 300, 300],
-  'CAIXA': [0, 0, 0],
-  'Dinheiro': [0, 0, 0],
+  'Cachês':           [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Saldo Itaú':       [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Nubank Saldos':    [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Nu Cripto':        [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Nu Investimentos': [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Caixinha Turbo':   [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Amortização':      [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Reserva Emerg.':   [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'XP':               [_N, _N, _N, _N, _N, 300, 300, 300, 300, 300],
+  'CAIXA':            [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
+  'Dinheiro':         [_N, _N, _N, _N, _N, 0, 0, 0, 0, 0],
 };
 const PAT_EXTRAORDINARY = [
   { date: '16/08/2026', desc: 'Móveis Casa (sofá + mesa)', bruto: 8000, liquido: 1950, aReceber: 6050, nota: 'Mãe deve 2ª parcela do sofá; mesa dividida com mozão (já lançado no tricount)' },
   { date: '18/08/2026', desc: '1/2 pousada Conselheiro Mata', bruto: 400, liquido: 200, aReceber: 200, nota: 'Viagem casamento' },
+  { date: '16-20/09/2026', desc: 'Feriado Casamento (cartório + festa + viagem)', bruto: 2375.66, liquido: 2375.66, aReceber: 0, nota: 'Cartório, festa no Chopp da Fábrica, hospedagem e passeios em Diamantina/Biribiri' },
+  { date: '08/10/2026', desc: 'Feriado Casamento (pedágio)', bruto: 23.79, liquido: 23.79, aReceber: 0, nota: 'Pedágio Sem Parar lançado em outubro na categoria do casamento' },
 ];
 
 function renderPatCards(){
   const el = document.getElementById('patCards');
-  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + v[i], 0));
+  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + (v[i] || 0), 0));
   const cur = totals[totals.length - 1];
   const prev = totals.length > 1 ? totals[totals.length - 2] : null;
   const delta = prev !== null ? cur - prev : null;
@@ -695,7 +798,7 @@ function renderPatCards(){
 let patTotalChartInstance, patAcctChartInstance;
 
 function renderPatTotalChart(){
-  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + v[i], 0));
+  const totals = PAT_MONTHS.map((_, i) => Object.values(PAT_SALDOS).reduce((s, v) => s + (v[i] || 0), 0));
   const ctx = document.getElementById('patTotalChart');
   if (patTotalChartInstance) patTotalChartInstance.destroy();
   patTotalChartInstance = new Chart(ctx, {
@@ -734,19 +837,38 @@ function renderPatTotalChart(){
   });
 }
 
+function renderPatSaldoNote(){
+  const el = document.getElementById('patSaldoNote');
+  const curKey = MONTHS[MONTHS.length - 1] ? MONTHS[MONTHS.length - 1].key : null;
+  // PAT_MONTHS usa os mesmos rótulos/ordem de MONTHLY_DATA; pegamos a nota
+  // pela posição do mês mais recente em PAT_MONTHS.
+  const lastLabel = PAT_MONTHS[PAT_MONTHS.length - 1];
+  const monthEntry = MONTHS.find(m => m.label === lastLabel);
+  const key = monthEntry ? monthEntry.key : null;
+  const note = key && PAT_SALDO_NOTES[key];
+  if (note){
+    el.style.display = '';
+    el.innerHTML = `<strong style="color:var(--amber);">${note.conta}:</strong> ${note.nota}`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function renderPatAcctChart(){
   const accounts = Object.keys(PAT_SALDOS);
+  const winStart = Math.max(0, PAT_MONTHS.length - PAT_CHART_WINDOW);
+  const winIdx = PAT_MONTHS.map((_, i) => i).slice(winStart);
   const ctx = document.getElementById('patAcctChart');
-  const palette = ['#6B7680', '#4A7FBF', '#4FAE8B'];
+  const palette = ['#6B7680', '#4A7FBF', '#4FAE8B', '#E0A458'];
   if (patAcctChartInstance) patAcctChartInstance.destroy();
   patAcctChartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: accounts,
-      datasets: PAT_MONTHS.map((m, i) => ({
-        label: m,
-        data: accounts.map(a => PAT_SALDOS[a][i]),
-        backgroundColor: palette[i % palette.length],
+      datasets: winIdx.map((mi, k) => ({
+        label: PAT_MONTHS[mi],
+        data: accounts.map(a => PAT_SALDOS[a][mi]),
+        backgroundColor: palette[k % palette.length],
         borderRadius: 3,
         maxBarThickness: 16,
       }))
@@ -768,8 +890,8 @@ function renderPatAcctChart(){
       }
     }
   });
-  document.getElementById('patAcctLegend').innerHTML = PAT_MONTHS.map((m, i) =>
-    `<span><span class="swatch" style="background:${palette[i % palette.length]}"></span>${m}</span>`
+  document.getElementById('patAcctLegend').innerHTML = winIdx.map((mi, k) =>
+    `<span><span class="swatch" style="background:${palette[k % palette.length]}"></span>${PAT_MONTHS[mi]}</span>`
   ).join('');
 }
 
@@ -785,12 +907,12 @@ function renderPatYield(){
   }
 
   const rows = accounts.map(a => {
-    const cur = PAT_SALDOS[a][lastIdx];
-    const prev = PAT_SALDOS[a][prevIdx];
+    const cur = PAT_SALDOS[a][lastIdx] || 0;
+    const prev = PAT_SALDOS[a][prevIdx] || 0;
     const variacao = cur - prev;
     const isNoYield = PAT_NO_YIELD_ACCOUNTS.includes(a);
     const aporte = PAT_APORTES[a][lastIdx];
-    const rendimento = isNoYield ? null : variacao - aporte;
+    const rendimento = (isNoYield || aporte === null) ? null : variacao - aporte;
     return { conta: a, variacao, aporte, rendimento, isNoYield };
   });
 
@@ -807,15 +929,15 @@ function renderPatYield(){
       <tbody>
         ${rows.map(r => `
           <tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:8px 4px;">${r.conta}${r.isNoYield ? ' <span style="font-size:11px; color:var(--text-dim);">(conta corrente)</span>' : ''}</td>
+            <td style="padding:8px 4px;">${r.conta}${r.isNoYield ? ` <span style="font-size:11px; color:var(--text-dim);">(${PAT_NO_YIELD_LABELS[r.conta] || 'sem rendimento'})</span>` : ''}</td>
             <td class="mono" style="text-align:right; padding:8px 4px; color:${r.variacao >= 0 ? 'var(--teal)' : 'var(--coral)'};">${fmtSigned(r.variacao)}</td>
-            <td class="mono" style="text-align:right; padding:8px 4px; color:var(--text-dim);">${r.isNoYield ? '—' : fmt(r.aporte)}</td>
-            <td class="mono" style="text-align:right; padding:8px 4px; color:${r.rendimento === null ? 'var(--text-dim)' : r.rendimento >= 0 ? 'var(--teal)' : 'var(--coral)'};">${r.rendimento !== null ? fmtSigned(r.rendimento) : 'saldo livre, não é rendimento'}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:var(--text-dim);">${(r.isNoYield || r.aporte === null) ? '—' : fmt(r.aporte)}</td>
+            <td class="mono" style="text-align:right; padding:8px 4px; color:${r.rendimento === null ? 'var(--text-dim)' : r.rendimento >= 0 ? 'var(--teal)' : 'var(--coral)'};">${r.rendimento !== null ? fmtSigned(r.rendimento) : 'saldo, não é rendimento'}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
-    <p class="section-note" style="margin-top:10px;">Rendimento = variação do saldo − aporte do mês. Confirmado: só houve aporte na XP (R$300/mês); nas demais contas, toda a variação é rendimento puro. Nubank Saldos fica fora dessa conta — funciona como conta corrente, o que sobra no fim do mês vira decisão sua (investir ou gastar no débito).</p>
+    <p class="section-note" style="margin-top:10px;">Rendimento = variação do saldo − aporte do mês. Confirmado: só houve aporte na XP (R$300/mês); nas demais contas, toda a variação é rendimento puro. Ficam fora dessa conta Nubank Saldos (conta corrente, o que sobra no fim do mês vira decisão sua), Cachês e Saldo Itaú (saldos que entraram em outubro, não são investimento).</p>
   `;
 }
 
@@ -851,6 +973,7 @@ function renderPatExtraordinary(){
 function renderPatrimonioPage(){
   renderPatCards();
   renderPatTotalChart();
+  renderPatSaldoNote();
   renderPatAcctChart();
   renderPatYield();
   renderPatExtraordinary();
@@ -1281,30 +1404,36 @@ function renderPieChart(){
 function renderAlerts(){
   const el = document.getElementById('alerts');
   const cur = DATA[activeIdx];
-  const prev = DATA[activeIdx - 1];
+  const others = DATA.filter((m, i) => i !== activeIdx);
 
-  if (!prev){
-    el.innerHTML = `<p class="empty-state">Sem mês anterior pra comparar ainda.</p>`;
+  if (others.length === 0){
+    el.innerHTML = `<p class="empty-state">Sem outro mês pra comparar ainda.</p>`;
     return;
   }
 
-  const allCats = new Set([...Object.keys(cur.categories), ...Object.keys(prev.categories)]);
+  // Média por categoria entre TODOS os outros meses já cadastrados — não só
+  // o mês imediatamente anterior. Isso evita marcar como "novo" uma
+  // categoria que só não apareceu no mês passado mas é recorrente (ex:
+  // ração a cada 2 meses). A média conta meses sem a categoria como 0.
+  const allCats = new Set();
+  DATA.forEach(m => Object.keys(m.categories).forEach(c => allCats.add(c)));
+
   const rows = [];
   allCats.forEach(cat => {
     const c = cur.categories[cat] || 0;
-    const p = prev.categories[cat] || 0;
-    if (p === 0 && c === 0) return;
-    const pct = p === 0 ? Infinity : ((c - p) / p) * 100;
-    const absDiff = c - p;
-    // dispara alerta se subiu 30%+ E o valor absoluto importa (> R$50 de diferença)
+    const avg = others.reduce((s, m) => s + (m.categories[cat] || 0), 0) / others.length;
+    if (avg === 0 && c === 0) return;
+    const pct = avg === 0 ? Infinity : ((c - avg) / avg) * 100;
+    const absDiff = c - avg;
+    // dispara alerta se subiu 30%+ sobre a média E o valor absoluto importa (> R$50)
     if (pct >= 30 && Math.abs(absDiff) >= 50){
-      rows.push({ cat, c, p, pct, absDiff });
+      rows.push({ cat, c, avg, pct, absDiff });
     }
   });
   rows.sort((a, b) => b.absDiff - a.absDiff);
 
   if (rows.length === 0){
-    el.innerHTML = `<p class="empty-state">Nenhuma categoria com alta relevante vs. ${prev.label}. 🙂</p>`;
+    el.innerHTML = `<p class="empty-state">Nenhuma categoria com alta relevante vs. a média dos outros meses. 🙂</p>`;
     return;
   }
 
@@ -1312,7 +1441,7 @@ function renderAlerts(){
     <div class="alert-row">
       <div>
         <div class="alert-cat">${r.cat}</div>
-        <div class="alert-detail mono">${fmt(r.p)} → ${fmt(r.c)}</div>
+        <div class="alert-detail mono">média ${fmt(r.avg)} → ${fmt(r.c)}</div>
       </div>
       <div class="alert-pct up">${r.pct === Infinity ? 'novo' : '+' + r.pct.toFixed(0) + '%'}</div>
     </div>
